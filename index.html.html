@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scholar — AI Assessment Suite</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Cormorant+Garamond:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0C1A0F;--bgCard:#12231A;--bgInput:#0A1510;
+  --border:#2A4A35;--borderLight:#3A6A4A;
+  --gold:#C9A84C;--goldDim:#8A7A3A;--goldBright:#E8CC6A;
+  --cream:#F0E8D0;--creamDim:#B0A888;
+  --green:#4A8A5A;--greenBright:#6ABA7A;
+  --red:#8A3A3A;--redBright:#BA5A5A;
+  --text:#D8D0BB;--textDim:#8A8472;
+  --accent:#2A6A3A;
+  --font:'Cormorant Garamond',serif;
+  --display:'Playfair Display',serif;
+  --mono:'JetBrains Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow:hidden}
+::placeholder{color:var(--textDim)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--gold)!important}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.btn{padding:10px 20px;border-radius:8px;font-size:14px;font-family:var(--font);font-weight:600;cursor:pointer;transition:all .25s;border:none;letter-spacing:.3px}
+.btn:disabled{opacity:.4;cursor:default}
+.btn-primary{background:linear-gradient(135deg,var(--gold),var(--goldDim));color:var(--bg)}
+.btn-secondary{background:transparent;border:1px solid var(--border);color:var(--cream)}
+.btn-danger{background:var(--red);color:var(--cream)}
+.btn-ghost{background:transparent;color:var(--gold);padding:8px 12px}
+
+.card{background:var(--bgCard);border:1px solid var(--border);border-radius:12px;padding:24px}
+.input{width:100%;padding:11px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bgInput);color:var(--cream);font-size:14px;font-family:var(--font);transition:border .2s}
+.textarea{width:100%;padding:11px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bgInput);color:var(--cream);font-size:14px;font-family:var(--font);resize:vertical;line-height:1.6}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.5px}
+.label{font-size:11px;color:var(--textDim);font-weight:600;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px}
+
+.dots{display:flex;gap:4px;padding:4px}.dots span{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:bounce 1.2s infinite}.dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
+
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:none;background:transparent;color:var(--textDim);cursor:pointer;width:100%;font-family:var(--font);font-size:14px;text-align:left;transition:all .2s;border-left:3px solid transparent}
+.nav-item.active{background:rgba(201,168,76,.1);color:var(--gold);font-weight:600;border-left-color:var(--gold)}
+
+.app{display:flex;height:100vh}
+.sidebar{width:240px;border-right:1px solid var(--border);padding:20px 12px;display:flex;flex-direction:column;flex-shrink:0}
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.page-header{padding:22px 28px 16px;border-bottom:1px solid var(--border)}
+.page-header h2{font-family:var(--display);font-size:22px;font-weight:700;color:var(--cream)}
+.page-header p{font-size:13px;color:var(--textDim);margin-top:2px}
+.page-body{flex:1;overflow-y:auto;padding:24px}
+
+.chat-msg{max-width:78%;padding:13px 17px;font-size:14px;line-height:1.7;white-space:pre-wrap;color:var(--text)}
+.chat-msg.bot{border-radius:14px 14px 14px 3px;background:var(--bgCard);border:1px solid var(--border)}
+.chat-msg.user{border-radius:14px 14px 3px 14px;background:var(--accent);border:1px solid var(--borderLight)}
+
+.opt-btn{display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bgCard);color:var(--text);cursor:pointer;font-family:var(--font);font-size:14px;text-align:left;transition:all .2s;width:100%;margin-bottom:8px}
+.opt-btn.sel{border-color:var(--gold);background:rgba(201,168,76,.07);color:var(--gold)}
+.opt-btn .ltr{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;background:var(--border);color:var(--textDim)}
+.opt-btn.sel .ltr{background:var(--gold);color:var(--bg)}
+
+.progress{height:3px;background:var(--border);width:100%}.progress .fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--goldBright));transition:width .4s}
+
+.empty{text-align:center;padding:60px 20px;color:var(--textDim)}
+.empty .ico{font-size:40px;margin-bottom:12px}
+.empty h3{font-family:var(--display);font-size:18px;color:var(--creamDim)}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 12px;color:var(--textDim);font-weight:600;font-size:11px;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+td{padding:10px 12px}
+
+.timer{font-family:var(--mono);font-size:13px;padding:4px 10px;border-radius:6px}
+.timer.warn{color:var(--redBright);background:rgba(138,58,58,.15)}
+.timer.ok{color:var(--greenBright);background:rgba(106,186,122,.1)}
+
+.dropzone{border:2px dashed var(--border);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .3s;background:var(--bgInput)}
+.dropzone:hover,.dropzone.dragover{border-color:var(--gold);background:rgba(201,168,76,.05)}
+.dropzone .dz-icon{font-size:36px;margin-bottom:10px}
+.dropzone .dz-title{font-family:var(--display);font-size:16px;color:var(--cream);margin-bottom:4px}
+.dropzone .dz-sub{font-size:12px;color:var(--textDim)}
+.dropzone .dz-formats{font-size:11px;color:var(--goldDim);margin-top:8px}
+.file-preview{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:8px;background:var(--bgCard);border:1px solid var(--borderLight);margin-top:12px}
+.file-preview .fp-icon{font-size:24px}
+.file-preview .fp-info{flex:1}
+.file-preview .fp-name{font-size:13px;color:var(--cream);font-weight:600}
+.file-preview .fp-meta{font-size:11px;color:var(--textDim)}
+.file-preview .fp-status{font-size:12px;font-weight:600}
+.tab-bar{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border)}
+.tab-btn{padding:10px 18px;font-family:var(--font);font-size:14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--textDim);cursor:pointer;transition:all .2s}
+.tab-btn.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:10px;font-size:13px;font-family:var(--font);z-index:9999;animation:fadeIn .3s;max-width:340px}
+.toast.error{background:#3B1117;border:1px solid var(--redBright);color:var(--redBright)}
+.toast.success{background:#0D3320;border:1px solid var(--greenBright);color:var(--greenBright)}
+.toast.info{background:rgba(201,168,76,.1);border:1px solid var(--gold);color:var(--gold)}
+
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;position:relative;overflow:hidden}
+.login-bg{position:absolute;inset:0;opacity:.03;background-image:repeating-linear-gradient(45deg,var(--gold) 0,var(--gold) 1px,transparent 0,transparent 50%);background-size:40px 40px}
+.login-glow{position:absolute;top:-30%;right:-10%;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(42,106,58,.08),transparent 70%)}
+
+.hidden{display:none!important}
+.err-text{color:var(--redBright);font-size:12px;margin-top:6px}
+.link-btn{background:none;border:none;color:var(--gold);cursor:pointer;font-family:var(--font);font-size:14px;text-decoration:underline}
+</style>
+</head>
+<body>
+
+<!-- ══════════ TOAST ══════════ -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- ══════════ AUTH SCREEN ══════════ -->
+<div id="authScreen" class="login-wrap">
+  <div class="login-bg"></div>
+  <div class="login-glow"></div>
+  <div style="width:100%;max-width:420px;position:relative;animation:fadeIn .8s ease-out">
+    <div style="text-align:center;margin-bottom:36px">
+      <svg width="56" height="56" viewBox="0 0 56 56" fill="none" style="margin:0 auto 16px;display:block">
+        <path d="M28 4L48 16V34C48 42 39 50 28 52C17 50 8 42 8 34V16L28 4Z" stroke="var(--gold)" stroke-width="1.5" fill="rgba(12,26,15,.8)"/>
+        <path d="M28 12L40 20V32C40 38 35 44 28 46C21 44 16 38 16 32V20L28 12Z" stroke="var(--goldDim)" stroke-width=".8" fill="none"/>
+        <text x="28" y="33" text-anchor="middle" fill="var(--gold)" font-size="18" font-family="Playfair Display" font-weight="700">S</text>
+      </svg>
+      <h1 style="font-family:var(--display);font-size:34px;font-weight:900;color:var(--cream);letter-spacing:-.5px;margin-bottom:4px">Scholar</h1>
+      <div style="font-size:12px;color:var(--textDim);letter-spacing:3px;text-transform:uppercase">AI Assessment Suite</div>
+      <div style="width:40px;height:2px;background:var(--gold);margin:12px auto 0;border-radius:1px"></div>
+    </div>
+
+    <!-- SIGNUP FORM -->
+    <div id="signupForm" class="card">
+      <h3 style="font-family:var(--display);font-size:18px;color:var(--cream);margin-bottom:16px;text-align:center">Create Account</h3>
+      <div style="margin-bottom:12px"><label class="label">Full Name</label><input id="signupName" class="input" placeholder="Enter your full name"></div>
+      <div style="margin-bottom:12px"><label class="label">Email</label><input id="signupEmail" class="input" type="email" placeholder="your@email.com"></div>
+      <div style="margin-bottom:12px"><label class="label">Password</label><input id="signupPass" class="input" type="password" placeholder="Min 6 characters"></div>
+      <div style="margin-bottom:18px">
+        <label class="label">I am a</label>
+        <div style="display:flex;gap:10px">
+          <button id="sr_student" class="opt-btn sel" onclick="pickRole('student')" style="flex:1;justify-content:center"><div style="font-size:20px">🎓</div>Student</button>
+          <button id="sr_lecturer" class="opt-btn" onclick="pickRole('lecturer')" style="flex:1;justify-content:center"><div style="font-size:20px">📚</div>Lecturer</button>
+        </div>
+      </div>
+      <div id="signupErr" class="err-text hidden"></div>
+      <button id="signupBtn" class="btn btn-primary" style="width:100%;padding:13px;font-size:15px" onclick="doSignup()">Create Account →</button>
+      <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--textDim)">Already have an account? <button class="link-btn" onclick="showLogin()">Sign in</button></p>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div id="loginForm" class="card hidden">
+      <h3 style="font-family:var(--display);font-size:18px;color:var(--cream);margin-bottom:16px;text-align:center">Welcome Back</h3>
+      <div style="margin-bottom:12px"><label class="label">Email</label><input id="loginEmail" class="input" type="email" placeholder="your@email.com"></div>
+      <div style="margin-bottom:16px"><label class="label">Password</label><input id="loginPass" class="input" type="password" placeholder="Your password"></div>
+      <div id="loginErr" class="err-text hidden"></div>
+      <button id="loginBtn" class="btn btn-primary" style="width:100%;padding:13px;font-size:15px" onclick="doLogin()">Sign In →</button>
+      <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--textDim)">Don't have an account? <button class="link-btn" onclick="showSignup()">Create one</button></p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ APP SHELL ══════════ -->
+<div id="appShell" class="app hidden">
+  <div class="sidebar">
+    <div style="display:flex;align-items:center;gap:10px;padding-bottom:20px;border-bottom:1px solid var(--border);margin-bottom:16px">
+      <svg width="42" height="42" viewBox="0 0 56 56" fill="none"><path d="M28 4L48 16V34C48 42 39 50 28 52C17 50 8 42 8 34V16L28 4Z" stroke="var(--gold)" stroke-width="1.5" fill="rgba(12,26,15,.8)"/><text x="28" y="33" text-anchor="middle" fill="var(--gold)" font-size="18" font-family="Playfair Display" font-weight="700">S</text></svg>
+      <div><div style="font-family:var(--display);font-size:17px;font-weight:700;color:var(--gold)">Scholar</div><div style="font-size:10px;color:var(--textDim);letter-spacing:1.5px;text-transform:uppercase">Assessment Suite</div></div>
+    </div>
+    <div id="navItems" style="display:flex;flex-direction:column;gap:4px;flex:1"></div>
+    <div style="border-top:1px solid var(--border);padding-top:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div id="uAvatar" style="width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:var(--cream);font-weight:700;font-size:13px"></div>
+        <div><div id="uName" style="font-size:13px;font-weight:600;color:var(--cream)"></div><span id="uBadge" class="badge"></span></div>
+      </div>
+      <button class="btn btn-ghost" style="width:100%;font-size:12px;color:var(--textDim)" onclick="doLogout()">Sign Out ↗</button>
+    </div>
+  </div>
+  <div class="main" id="mainContent"></div>
+</div>
+
+<!-- ══════════ LOADING SCREEN ══════════ -->
+<div id="loadingScreen" class="login-wrap hidden">
+  <div style="text-align:center"><div class="dots"><span></span><span></span><span></span></div><p style="margin-top:12px;color:var(--textDim);font-size:13px">Loading Scholar...</p></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// CONFIG — Replace with Supabase credentials
+// ═══════════════════════════════════════════
+const SUPABASE_URL = 'https://krsinhnznrqlcifeumfl.supabase.co';       // e.g. https://xxxxx.supabase.co
+const SUPABASE_ANON_KEY = 'sb_publishable_cfZrXFXji2_hprCQEzDMkA_B3L4Ilcs'; // from Settings > API
+const GROQ_API_KEY = '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';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let S = {
+  user: null,      // auth user
+  profile: null,   // {id, name, role}
+  page: '',
+  materials: [],
+  quizzes: [],
+  scores: [],
+  chatMsgs: [],
+  chatId: null,
+  quizState: null,
+  quizTimer: null,
+  quizSeconds: 0,
+};
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+function $(id) { return document.getElementById(id); }
+function show(id) { $(id)?.classList.remove('hidden'); }
+function hide(id) { $(id)?.classList.add('hidden'); }
+
+let toastTimer;
+function toast(msg, type = 'info') {
+  const el = $('toast');
+  el.textContent = msg;
+  el.className = `toast ${type}`;
+  show('toast');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => hide('toast'), 4000);
+}
+
+function dots() { return '<div class="dots"><span></span><span></span><span></span></div>'; }
+function fmt(t) { return t.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--gold)">$1</strong>').replace(/\*(.*?)\*/g, '<em style="color:var(--creamDim)">$1</em>'); }
+function fmtTime(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
+function ph(icon, title, sub) { return `<div class="page-header"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">${icon}</span><div><h2>${title}</h2>${sub?`<p>${sub}</p>`:''}</div></div></div>`; }
+function empty(ico, t, s) { return `<div class="empty"><div class="ico">${ico}</div><h3>${t}</h3><p style="font-size:13px;margin-top:6px">${s}</p></div>`; }
+function badge(text, color) { return `<span class="badge" style="background:${color}22;color:${color};border:1px solid ${color}44">${text}</span>`; }
+
+async function askAI(system, userMsg) {
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json", 
+        "Authorization": `Bearer ${GROQ_API_KEY}` 
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant", // Groq's insanely fast Llama 3 model
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: userMsg }
+        ]
+      }),
+    });
+    
+    const data = await res.json();
+    if (data.error) { 
+      console.error('Groq API Error:', data.error); 
+      return 'AI error: ' + (data.error.message || 'Unknown error'); 
+    }
+    return data.choices?.[0]?.message?.content || 'No response.';
+  } catch(e) { 
+    console.error("Fetch failed:", e); 
+    return 'AI temporarily unavailable. Please try again.'; 
+  }
+}
+// ═══════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════
+let selectedRole = 'student';
+function pickRole(r) {
+  selectedRole = r;
+  $('sr_student').className = 'opt-btn' + (r === 'student' ? ' sel' : '');
+  $('sr_lecturer').className = 'opt-btn' + (r === 'lecturer' ? ' sel' : '');
+}
+function showLogin() { hide('signupForm'); show('loginForm'); }
+function showSignup() { hide('loginForm'); show('signupForm'); }
+
+async function doSignup() {
+  const name = $('signupName').value.trim();
+  const email = $('signupEmail').value.trim();
+  const pass = $('signupPass').value;
+  hide('signupErr');
+
+  if (!name || !email || !pass) { $('signupErr').textContent = 'All fields are required.'; show('signupErr'); return; }
+  if (pass.length < 6) { $('signupErr').textContent = 'Password must be at least 6 characters.'; show('signupErr'); return; }
+
+  $('signupBtn').disabled = true;
+  $('signupBtn').textContent = 'Creating account...';
+
+  const { data, error } = await sb.auth.signUp({
+    email, password: pass,
+    options: { data: { name, role: selectedRole } }
+  });
+
+  if (error) {
+    $('signupErr').textContent = error.message;
+    show('signupErr');
+    $('signupBtn').disabled = false;
+    $('signupBtn').textContent = 'Create Account →';
+    return;
+  }
+
+  toast('Account created successfully!', 'success');
+  // If email confirmation is off, user is auto-logged in
+  if (data.session) {
+    await initApp(data.user);
+  } else {
+    toast('Check your email to confirm your account, then sign in.', 'info');
+    showLogin();
+    $('signupBtn').disabled = false;
+    $('signupBtn').textContent = 'Create Account →';
+  }
+}
+
+async function doLogin() {
+  const email = $('loginEmail').value.trim();
+  const pass = $('loginPass').value;
+  hide('loginErr');
+
+  if (!email || !pass) { $('loginErr').textContent = 'Email and password required.'; show('loginErr'); return; }
+
+  $('loginBtn').disabled = true;
+  $('loginBtn').textContent = 'Signing in...';
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+
+  if (error) {
+    $('loginErr').textContent = error.message;
+    show('loginErr');
+    $('loginBtn').disabled = false;
+    $('loginBtn').textContent = 'Sign In →';
+    return;
+  }
+
+  await initApp(data.user);
+}
+
+async function doLogout() {
+  clearInterval(S.quizTimer);
+  await sb.auth.signOut();
+  S = { user:null, profile:null, page:'', materials:[], quizzes:[], scores:[], chatMsgs:[], chatId:null, quizState:null, quizTimer:null, quizSeconds:0 };
+  hide('appShell');
+  show('authScreen');
+  $('loginBtn').disabled = false;
+  $('loginBtn').textContent = 'Sign In →';
+  $('signupBtn').disabled = false;
+  $('signupBtn').textContent = 'Create Account →';
+}
+
+// ═══════════════════════════════════════════
+// APP INIT
+// ═══════════════════════════════════════════
+async function initApp(user) {
+  hide('authScreen');
+  show('loadingScreen');
+  S.user = user;
+
+  // Get profile
+  const { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).single();
+  if (!profile) {
+    // Fallback: create profile if trigger didn't fire
+    const meta = user.user_metadata || {};
+    await sb.from('profiles').insert({ id: user.id, name: meta.name || 'User', role: meta.role || 'student' });
+    S.profile = { id: user.id, name: meta.name || 'User', role: meta.role || 'student' };
+  } else {
+    S.profile = profile;
+  }
+
+  // Load data
+  await loadAllData();
+
+  // Load chat history
+  const { data: chatRow } = await sb.from('chat_history').select('*').eq('user_id', S.profile.id).single();
+  if (chatRow) {
+    S.chatMsgs = chatRow.messages || [];
+    S.chatId = chatRow.id;
+  } else {
+    S.chatMsgs = [{ role: 'bot', content: `Welcome, ${S.profile.name}. I'm your AI study companion. I have access to all uploaded lecture materials. Ask me anything — I'll explain concepts, quiz you, break down topics, or help you prepare.\n\nWhat would you like to explore today?` }];
+  }
+
+  hide('loadingScreen');
+  show('appShell');
+  setupShell();
+}
+
+async function loadAllData() {
+  const [mRes, qRes, sRes] = await Promise.all([
+    sb.from('materials').select('*').order('created_at', { ascending: false }),
+    sb.from('quizzes').select('*').order('created_at', { ascending: false }),
+    sb.from('scores').select('*').order('created_at', { ascending: false }),
+  ]);
+  S.materials = mRes.data || [];
+  S.quizzes = qRes.data || [];
+  S.scores = sRes.data || [];
+}
+
+function setupShell() {
+  const isLec = S.profile.role === 'lecturer';
+  $('uName').textContent = S.profile.name;
+  $('uAvatar').textContent = S.profile.name[0].toUpperCase();
+  const b = $('uBadge');
+  const bc = isLec ? 'var(--gold)' : 'var(--greenBright)';
+  b.textContent = S.profile.role;
+  b.style.cssText = `background:${bc}22;color:${bc};border:1px solid ${bc}44`;
+
+  const navs = isLec
+    ? [{id:'upload',icon:'📜',label:'Upload Materials'},{id:'generate',icon:'⚔️',label:'Generate Assessment'},{id:'scores',icon:'🏆',label:'Student Scores'}]
+    : [{id:'chat',icon:'💬',label:'AI Tutor'},{id:'quiz',icon:'⚔️',label:'Quizzes'},{id:'study',icon:'📖',label:'Study Materials'}];
+
+  $('navItems').innerHTML = navs.map(n =>
+    `<button class="nav-item" data-page="${n.id}" onclick="goPage('${n.id}')"><span style="font-size:18px">${n.icon}</span><span>${n.label}</span></button>`
+  ).join('');
+  goPage(navs[0].id);
+}
+
+function goPage(id) {
+  S.page = id;
+  if (S.page !== 'quiz') { clearInterval(S.quizTimer); S.quizTimer = null; }
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === id));
+  render();
+}
+
+function render() {
+  const m = $('mainContent');
+  const pages = { chat: renderChat, quiz: renderQuiz, study: renderStudy, upload: renderUpload, generate: renderGenerate, scores: renderScores };
+  (pages[S.page] || (() => {}))(m);
+}
+
+// ═══════════════════════════════════════════
+// CHAT PAGE
+// ═══════════════════════════════════════════
+let chatStreaming = false;
+
+function renderChat(el) {
+  el.innerHTML = `
+    ${ph('💬','AI Tutor', S.materials.length + ' material' + (S.materials.length!==1?'s':'') + ' loaded')}
+    <div id="chatBox" style="flex:1;overflow-y:auto;padding:16px 24px;display:flex;flex-direction:column;gap:14px"></div>
+    <div style="padding:12px 24px 16px;border-top:1px solid var(--border)">
+      <div style="display:flex;gap:10px">
+        <textarea id="chatIn" class="textarea" rows="2" placeholder="Ask your tutor anything..." style="flex:1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+        <button class="btn btn-primary" style="align-self:flex-end;padding:10px 16px;font-size:18px" onclick="sendChat()">↑</button>
+      </div>
+    </div>`;
+  renderChatMsgs();
+}
+
+function renderChatMsgs() {
+  const el = $('chatBox');
+  if (!el) return;
+  el.innerHTML = S.chatMsgs.map(m => `<div style="display:flex;justify-content:${m.role==='user'?'flex-end':'flex-start'};animation:fadeIn .3s"><div class="chat-msg ${m.role==='user'?'user':'bot'}">${fmt(m.content)}</div></div>`).join('')
+    + (chatStreaming ? `<div style="display:flex"><div class="chat-msg bot">${dots()}</div></div>` : '');
+  el.scrollTop = el.scrollHeight;
+}
+
+async function sendChat() {
+  const inp = $('chatIn');
+  const msg = inp?.value.trim();
+  if (!msg || chatStreaming) return;
+  inp.value = '';
+  S.chatMsgs.push({ role: 'user', content: msg });
+  chatStreaming = true;
+  renderChatMsgs();
+
+  const matCtx = S.materials.map(m => `[${m.title}]:\n${m.content}`).join('\n\n---\n\n');
+  const sys = `You are Scholar, an elite AI academic tutor. Lecture materials:\n\n${matCtx || "(No materials uploaded yet.)"}\n\nBe thorough, conversational, use examples. Address student as "${S.profile.name}".`;
+  const reply = await askAI(sys, msg);
+  chatStreaming = false;
+  S.chatMsgs.push({ role: 'bot', content: reply });
+  renderChatMsgs();
+
+  // Save chat to Supabase
+  if (S.chatId) {
+    await sb.from('chat_history').update({ messages: S.chatMsgs, updated_at: new Date().toISOString() }).eq('id', S.chatId);
+  } else {
+    const { data } = await sb.from('chat_history').insert({ user_id: S.profile.id, messages: S.chatMsgs }).select().single();
+    if (data) S.chatId = data.id;
+  }
+}
+
+// ═══════════════════════════════════════════
+// QUIZ PAGE
+// ═══════════════════════════════════════════
+function renderQuiz(el) {
+  if (S.quizState?.submitted) { renderQuizResult(el); return; }
+  if (S.quizState?.quiz) { renderQuizActive(el); return; }
+
+  const cards = S.quizzes.length === 0
+    ? empty('📭','No assessments yet',"Your lecturer hasn't published any quizzes yet.")
+    : S.quizzes.map((q,i) => {
+        const taken = S.scores.filter(s => s.quiz_id === q.id && s.student_id === S.profile.id);
+        const bg = taken.length > 0 ? badge('Taken ('+taken[taken.length-1].percentage+'%)', 'var(--greenBright)') : badge('New', 'var(--goldDim)');
+        return `<div class="card" style="cursor:pointer;margin-bottom:12px;animation:fadeIn .4s ease-out ${i*.08}s both" onclick="startQuiz('${q.id}')">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div><h3 style="font-family:var(--display);font-size:17px;color:var(--cream);margin-bottom:4px">${q.title}</h3>
+            <p style="font-size:13px;color:var(--textDim)">${q.questions.length} questions · ${q.time_limit_minutes||30} min · From: ${q.material_title||'material'}</p></div>
+            <div>${bg}</div></div></div>`;
+      }).join('');
+  el.innerHTML = `${ph('⚔️','Quizzes','Assessments from your lecturers')}<div class="page-body">${cards}</div>`;
+}
+
+function startQuiz(id) {
+  const quiz = S.quizzes.find(q => q.id === id);
+  if (!quiz) return;
+  S.quizState = { quiz, currentQ: 0, answers: {}, submitted: false, result: null, evaluating: false };
+  S.quizSeconds = (quiz.time_limit_minutes || 30) * 60;
+  clearInterval(S.quizTimer);
+  S.quizTimer = setInterval(() => {
+    S.quizSeconds--;
+    const el = $('timerDisplay');
+    if (el) {
+      el.textContent = '⏱ ' + fmtTime(S.quizSeconds);
+      el.className = 'timer ' + (S.quizSeconds < 60 ? 'warn' : 'ok');
+    }
+    if (S.quizSeconds <= 0) { clearInterval(S.quizTimer); submitQuiz(); }
+  }, 1000);
+  render();
+}
+
+function renderQuizActive(el) {
+  const qs = S.quizState, q = qs.quiz.questions[qs.currentQ], total = qs.quiz.questions.length;
+  const pct = ((qs.currentQ+1)/total)*100;
+  const isMCQ = q.type === 'mcq';
+  const hasCur = qs.answers[qs.currentQ] != null && qs.answers[qs.currentQ] !== '';
+  const allDone = Object.keys(qs.answers).length >= total && Object.values(qs.answers).every(v => v != null && v !== '');
+  const isLast = qs.currentQ >= total - 1;
+
+  let ansArea = '';
+  if (isMCQ) {
+    ansArea = q.options.map((o,oi) => `<button class="opt-btn${qs.answers[qs.currentQ]===oi?' sel':''}" onclick="qSelMCQ(${oi})"><span class="ltr">${String.fromCharCode(65+oi)}</span>${o}</button>`).join('');
+  } else {
+    ansArea = `<textarea class="textarea" rows="5" placeholder="Write your answer..." id="qOpenIn" oninput="qOpenType()">${qs.answers[qs.currentQ]||''}</textarea>`;
+  }
+
+  el.innerHTML = `
+    <div class="page-header"><div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">⚔️</span><div><h2 style="font-family:var(--display);font-size:22px;font-weight:700;color:var(--cream)">${qs.quiz.title}</h2><p style="font-size:13px;color:var(--textDim)">Question ${qs.currentQ+1} of ${total}</p></div></div>
+      <span id="timerDisplay" class="timer ${S.quizSeconds<60?'warn':'ok'}">⏱ ${fmtTime(S.quizSeconds)}</span>
+    </div></div>
+    <div class="progress"><div class="fill" style="width:${pct}%"></div></div>
+    <div class="page-body" style="display:flex;flex-direction:column">
+      <div class="card" style="margin-bottom:16px">
+        ${badge(isMCQ?'Multiple Choice · 2pts':'Open-ended · '+(q.maxScore||5)+'pts', isMCQ?'var(--gold)':'var(--greenBright)')}
+        <p style="font-size:16px;color:var(--cream);margin-top:12px;line-height:1.7">${q.question}</p>
+      </div>
+      ${ansArea}
+    </div>
+    <div style="padding:12px 24px 16px;border-top:1px solid var(--border);display:flex;justify-content:space-between">
+      <button class="btn btn-secondary" onclick="qPrev()" ${qs.currentQ===0?'disabled':''}>← Prev</button>
+      ${isLast
+        ? `<button class="btn btn-primary" onclick="submitQuiz()" ${!allDone||qs.evaluating?'disabled':''}>${qs.evaluating?'Evaluating...':'Submit Assessment ✓'}</button>`
+        : `<button class="btn btn-primary" onclick="qNext()" ${!hasCur?'disabled':''}>Next →</button>`}
+    </div>`;
+}
+
+function qSelMCQ(i) { S.quizState.answers[S.quizState.currentQ] = i; render(); }
+function qOpenType() { S.quizState.answers[S.quizState.currentQ] = $('qOpenIn')?.value || ''; }
+function qPrev() { if (S.quizState.currentQ > 0) { S.quizState.currentQ--; render(); } }
+function qNext() { S.quizState.currentQ++; render(); }
+
+async function submitQuiz() {
+  const qs = S.quizState;
+  if (qs.evaluating) return;
+  clearInterval(S.quizTimer);
+  qs.evaluating = true;
+  render();
+
+  const timeTaken = ((qs.quiz.time_limit_minutes||30)*60) - S.quizSeconds;
+  let total = 0;
+  const details = [];
+
+  for (let i = 0; i < qs.quiz.questions.length; i++) {
+    const q = qs.quiz.questions[i], ans = qs.answers[i] ?? '';
+    if (q.type === 'mcq') {
+      const pts = ans === q.correct ? 2 : 0;
+      total += pts;
+      details.push({ q:q.question, answer:ans, correct:q.correct, score:pts, max:2, explanation:q.explanation });
+    } else {
+      try {
+        const resp = await askAI('You are a strict but fair exam grader. Respond ONLY with valid JSON.',
+          `Question: ${q.question}\nRubric: ${q.rubric||'Evaluate for accuracy'}\nMax: ${q.maxScore||5}\nAnswer: ${ans}\nRespond: {"score":<0-${q.maxScore||5}>,"feedback":"<brief>"}`);
+        const p = JSON.parse(resp.replace(/```json|```/g,'').trim());
+        total += p.score;
+        details.push({ q:q.question, answer:ans, score:p.score, max:q.maxScore||5, feedback:p.feedback });
+      } catch { details.push({ q:q.question, answer:ans, score:0, max:q.maxScore||5, feedback:'Could not evaluate.' }); }
+    }
+  }
+
+  const maxTotal = qs.quiz.questions.reduce((s,q) => s + (q.type==='mcq'?2:(q.maxScore||5)), 0);
+  const pct = Math.round((total/maxTotal)*100);
+
+  // Save to Supabase
+  const { data: scoreRow, error } = await sb.from('scores').insert({
+    student_id: S.profile.id, quiz_id: qs.quiz.id, student_name: S.profile.name,
+    quiz_title: qs.quiz.title, score: total, max_score: maxTotal, percentage: pct,
+    time_taken_seconds: timeTaken, details
+  }).select().single();
+
+  if (error) toast('Error saving score: ' + error.message, 'error');
+  else { S.scores.unshift(scoreRow); toast('Assessment submitted!', 'success'); }
+
+  qs.result = { score:total, maxScore:maxTotal, pct, details, timeTaken };
+  qs.submitted = true;
+  qs.evaluating = false;
+  render();
+}
+
+function renderQuizResult(el) {
+  const r = S.quizState.result, pct = r.pct;
+  const grade = pct>=70?'A':pct>=60?'B':pct>=50?'C':pct>=40?'D':'F';
+  const gc = pct>=70?'var(--greenBright)':pct>=50?'var(--gold)':'var(--redBright)';
+
+  el.innerHTML = `${ph('🏆','Results',S.quizState.quiz.title)}
+    <div class="page-body">
+      <div class="card" style="text-align:center;margin-bottom:20px">
+        <div style="font-family:var(--display);font-size:56px;font-weight:900;color:${gc}">${grade}</div>
+        <div style="font-family:var(--mono);font-size:24px;color:var(--cream);margin-top:4px">${r.score}/${r.maxScore} <span style="font-size:14px;color:var(--textDim)">(${pct}%)</span></div>
+        <div style="font-size:12px;color:var(--textDim);margin-top:6px">Time: ${fmtTime(r.timeTaken)}</div>
+        <div style="height:5px;background:var(--border);border-radius:3px;margin-top:14px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${gc};border-radius:3px;transition:width 1s"></div></div>
+      </div>
+      ${r.details.map((d,i) => {
+        const dc = d.score===d.max?'var(--greenBright)':d.score>0?'var(--gold)':'var(--redBright)';
+        return `<div class="card" style="margin-bottom:10px;animation:fadeIn .3s ease-out ${i*.05}s both">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:13px;color:var(--creamDim);font-weight:600">Q${i+1}</span><span style="font-family:var(--mono);font-size:13px;color:${dc}">${d.score}/${d.max}</span></div>
+          <p style="font-size:13px;color:var(--text);margin-bottom:4px">${d.q}</p>
+          ${d.feedback?`<p style="font-size:12px;color:var(--textDim);font-style:italic">${d.feedback}</p>`:''}
+          ${d.explanation?`<p style="font-size:12px;color:var(--textDim);font-style:italic">${d.explanation}</p>`:''}
+        </div>`;
+      }).join('')}
+      <button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="S.quizState=null;render()">← Back to Quizzes</button>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
+// STUDY PAGE
+// ═══════════════════════════════════════════
+let studyGuide='', studySel=null, studyGen=false;
+
+function renderStudy(el) {
+  if (!S.materials.length) { el.innerHTML=ph('📖','Study Materials','AI-generated guides')+`<div class="page-body">${empty('📭','No materials','Lecturer hasn\'t uploaded materials yet.')}</div>`; return; }
+  if (studySel && (studyGuide || studyGen)) {
+    el.innerHTML=`${ph('📖','Study Materials','')}<div class="page-body">
+      <button class="btn btn-ghost" style="margin-bottom:14px" onclick="studySel=null;studyGuide='';render()">← Back</button>
+      <div class="card"><h3 style="font-family:var(--display);font-size:20px;color:var(--gold);margin-bottom:12px">Study Guide: ${studySel.title}</h3>
+      ${studyGen?`<div style="display:flex;align-items:center;gap:10px;padding:20px;color:var(--textDim)">${dots()}<span style="font-size:13px">Generating study guide...</span></div>`
+        :`<div style="font-size:14px;line-height:1.8;white-space:pre-wrap">${fmt(studyGuide)}</div>`}
+      </div></div>`;
+    return;
+  }
+  el.innerHTML=`${ph('📖','Study Materials','Select a material to generate a study guide')}<div class="page-body">
+    ${S.materials.map((m,i)=>`<div class="card" style="cursor:pointer;margin-bottom:12px;animation:fadeIn .4s ease-out ${i*.08}s both" onclick="genStudy('${m.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center"><div><h3 style="font-family:var(--display);font-size:17px;color:var(--cream);margin-bottom:4px">${m.title}</h3>
+      <p style="font-size:12px;color:var(--textDim)">${m.content.length} chars · ${new Date(m.created_at).toLocaleDateString()}</p></div><span style="font-size:22px">📖</span></div></div>`).join('')}</div>`;
+}
+
+async function genStudy(id) {
+  studySel = S.materials.find(m=>m.id===id);
+  studyGuide=''; studyGen=true; render();
+  studyGuide = await askAI('Create a comprehensive study guide. Include: key concepts, definitions, topic summaries, potential exam questions with answers, memory aids.', studySel.content);
+  studyGen=false; render();
+}
+
+// ═══════════════════════════════════════════
+// UPLOAD PAGE (LECTURER)
+// ═══════════════════════════════════════════
+let uploadTab = 'file';
+let pendingFile = null; // {name, size, type, content}
+let fileExtracting = false;
+
+function renderUpload(el) {
+  const matList = S.materials.length ? `<h3 style="font-family:var(--display);font-size:16px;color:var(--creamDim);margin-bottom:12px">Uploaded (${S.materials.length})</h3>
+    ${S.materials.map((m,i)=>`<div class="card" style="margin-bottom:10px;animation:fadeIn .3s ease-out ${i*.05}s both"><div style="display:flex;justify-content:space-between;align-items:center">
+      <div><h4 style="font-size:15px;color:var(--cream);margin-bottom:2px">${m.title}</h4><p style="font-size:12px;color:var(--textDim)">${m.content.slice(0,100)}... · ${m.content.length} chars</p></div>
+      <button class="btn btn-danger" style="padding:6px 12px;font-size:12px" onclick="delMat('${m.id}')">Remove</button></div></div>`).join('')}` : '';
+
+  const filePreview = pendingFile
+    ? `<div class="file-preview">
+        <span class="fp-icon">${pendingFile.type.includes('pdf')?'📕':pendingFile.type.includes('word')||pendingFile.name.endsWith('.docx')?'📘':'📄'}</span>
+        <div class="fp-info"><div class="fp-name">${pendingFile.name}</div><div class="fp-meta">${(pendingFile.size/1024).toFixed(1)} KB · ${pendingFile.content.length} characters extracted</div></div>
+        <span class="fp-status" style="color:var(--greenBright)">✓ Ready</span>
+        <button class="btn btn-ghost" style="font-size:12px;padding:4px 8px;color:var(--redBright)" onclick="pendingFile=null;render()">✕</button>
+      </div>`
+    : '';
+
+  const extractingUI = fileExtracting
+    ? `<div class="file-preview"><div style="display:flex;align-items:center;gap:10px;color:var(--textDim)">${dots()}<span style="font-size:13px">Extracting text from file...</span></div></div>`
+    : '';
+
+  el.innerHTML=`${ph('📜','Upload Materials','Add lecture notes, PDFs, or Word documents')}
+    <div class="page-body">
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="font-family:var(--display);font-size:16px;color:var(--cream);margin-bottom:14px">New Material</h3>
+        <div style="margin-bottom:12px"><label class="label">Title / Course</label><input id="matTitle" class="input" placeholder="e.g. CSC 301 — Data Structures"></div>
+
+        <div class="tab-bar">
+          <button class="tab-btn ${uploadTab==='file'?'active':''}" onclick="uploadTab='file';render()">📎 Upload File</button>
+          <button class="tab-btn ${uploadTab==='paste'?'active':''}" onclick="uploadTab='paste';render()">📝 Paste Text</button>
+        </div>
+
+        ${uploadTab === 'file' ? `
+          <div class="dropzone" id="dropZone" onclick="$('fileInput').click()"
+            ondragover="event.preventDefault();this.classList.add('dragover')"
+            ondragleave="this.classList.remove('dragover')"
+            ondrop="event.preventDefault();this.classList.remove('dragover');handleFileDrop(event)">
+            <div class="dz-icon">📂</div>
+            <div class="dz-title">Drop your file here or click to browse</div>
+            <div class="dz-sub">We'll extract the text content automatically</div>
+            <div class="dz-formats">Supports: PDF, DOCX, DOC, TXT, MD</div>
+          </div>
+          <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.md,.text" style="display:none" onchange="handleFileSelect(event)">
+          ${extractingUI}
+          ${filePreview}
+        ` : `
+          <textarea id="matContent" class="textarea" rows="10" placeholder="Paste your lecture notes, textbook excerpts, or course content here..."></textarea>
+        `}
+
+        <button id="uploadBtn" class="btn btn-primary" style="width:100%;margin-top:14px" onclick="uploadMat()">Upload Material ↑</button>
+      </div>
+      ${matList}
+    </div>`;
+}
+
+// ─── FILE HANDLING ───
+async function handleFileSelect(event) {
+  const file = event.target.files?.[0];
+  if (file) await processFile(file);
+}
+
+async function handleFileDrop(event) {
+  const file = event.dataTransfer.files?.[0];
+  if (file) await processFile(file);
+}
+
+async function processFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const allowed = ['pdf','docx','doc','txt','md','text'];
+  if (!allowed.includes(ext)) { toast('Unsupported file type. Use PDF, DOCX, or TXT.', 'error'); return; }
+
+  pendingFile = null;
+  fileExtracting = true;
+  render();
+
+  // Auto-fill title from filename if empty
+  const titleInput = $('matTitle');
+  if (titleInput && !titleInput.value.trim()) {
+    titleInput.value = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+  }
+
+  let text = '';
+  try {
+    if (ext === 'txt' || ext === 'md' || ext === 'text') {
+      text = await file.text();
+    } else if (ext === 'pdf') {
+      text = await extractPDF(file);
+    } else if (ext === 'docx' || ext === 'doc') {
+      text = await extractDOCX(file);
+    }
+  } catch (e) {
+    toast('Error reading file: ' + e.message, 'error');
+    fileExtracting = false;
+    render();
+    return;
+  }
+
+  text = text.trim();
+  if (!text) {
+    toast('Could not extract text from this file. It may be scanned/image-based. Try pasting the text manually.', 'error');
+    fileExtracting = false;
+    render();
+    return;
+  }
+
+  pendingFile = { name: file.name, size: file.size, type: file.type || ext, content: text };
+  fileExtracting = false;
+  toast(`Extracted ${text.length} characters from ${file.name}`, 'success');
+  render();
+}
+
+async function extractPDF(file) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map(item => item.str).join(' ');
+    fullText += pageText + '\n\n';
+  }
+  return fullText;
+}
+
+async function extractDOCX(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  return result.value;
+}
+
+// ─── UPLOAD TO SUPABASE ───
+async function uploadMat() {
+  const title = $('matTitle')?.value.trim();
+  let content = '';
+
+  if (uploadTab === 'file') {
+    if (!pendingFile) { toast('Please upload a file first.', 'error'); return; }
+    content = pendingFile.content;
+  } else {
+    content = $('matContent')?.value.trim();
+  }
+
+  if (!title || !content) { toast('Title and content required.', 'error'); return; }
+
+  $('uploadBtn').disabled = true;
+  $('uploadBtn').textContent = 'Uploading...';
+
+  const { data, error } = await sb.from('materials').insert({ lecturer_id: S.profile.id, title, content }).select().single();
+  if (error) { toast('Upload failed: ' + error.message, 'error'); }
+  else { S.materials.unshift(data); toast('Material uploaded!', 'success'); pendingFile = null; }
+  render();
+}
+
+async function delMat(id) {
+  const { error } = await sb.from('materials').delete().eq('id', id);
+  if (!error) { S.materials = S.materials.filter(m=>m.id!==id); toast('Removed.', 'success'); render(); }
+  else toast('Error: ' + error.message, 'error');
+}
+
+// ═══════════════════════════════════════════
+// GENERATE ASSESSMENT (LECTURER)
+// ═══════════════════════════════════════════
+let genSelIdx=null, genPreview=null, genBusy=false;
+
+function renderGenerate(el) {
+  if (!S.materials.length) { el.innerHTML=ph('⚔️','Generate Assessment','')+`<div class="page-body">${empty('📜','Upload materials first','You need lecture notes before generating assessments.')}</div>`; return; }
+
+  if (genPreview) {
+    el.innerHTML=`${ph('⚔️','Generate Assessment','')}<div class="page-body">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="font-family:var(--display);font-size:18px;color:var(--cream)">Preview (${genPreview.length} questions)</h3>
+        <div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="genPreview=null;render()">Discard</button><button class="btn btn-primary" onclick="publishQuiz()">Publish ✓</button></div></div>
+      ${genPreview.map((q,i)=>{
+        const mc=q.type==='mcq';
+        return `<div class="card" style="margin-bottom:10px;animation:fadeIn .3s ease-out ${i*.05}s both">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:12px;font-weight:600;color:var(--creamDim)">Q${i+1}</span>${badge(mc?'MCQ · 2pts':'Open · '+(q.maxScore||5)+'pts',mc?'var(--gold)':'var(--greenBright)')}</div>
+          <p style="font-size:14px;color:var(--cream);margin-bottom:8px;line-height:1.6">${q.question}</p>
+          ${mc&&q.options?q.options.map((o,oi)=>`<div style="padding:6px 10px;font-size:13px;color:${oi===q.correct?'var(--greenBright)':'var(--textDim)'};background:${oi===q.correct?'rgba(106,186,122,.07)':'transparent'};border-radius:6px">${String.fromCharCode(65+oi)}. ${o}${oi===q.correct?' ✓':''}</div>`).join(''):''}
+          ${!mc&&q.rubric?`<p style="font-size:12px;color:var(--textDim);font-style:italic;margin-top:4px">Rubric: ${q.rubric}</p>`:''}
+        </div>`;
+      }).join('')}</div>`;
+    return;
+  }
+
+  el.innerHTML=`${ph('⚔️','Generate Assessment','AI creates questions from your materials')}
+    <div class="page-body">
+      <div class="card">
+        <h3 style="font-family:var(--display);font-size:16px;color:var(--cream);margin-bottom:14px">Configure Assessment</h3>
+        <div style="margin-bottom:14px"><label class="label">Select Material</label>
+          <div style="display:flex;flex-direction:column;gap:8px">${S.materials.map((m,i)=>`<button class="opt-btn${genSelIdx===i?' sel':''}" onclick="genSelIdx=${i};render()">${m.title}</button>`).join('')}</div></div>
+        <div style="display:flex;gap:14px;margin-bottom:14px">
+          <div style="flex:1"><label class="label">Questions</label><input id="gNumQ" class="input" type="number" value="5"></div>
+          <div style="flex:1"><label class="label">Type</label><select id="gType" class="input"><option value="mixed">Mixed</option><option value="mcq">MCQ</option><option value="open">Open</option></select></div>
+          <div style="flex:1"><label class="label">Time (min)</label><input id="gTime" class="input" type="number" value="30"></div>
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="genAssessment()" ${genBusy?'disabled':''}>${genBusy?'Generating...':'Generate Questions ⚡'}</button>
+        ${genBusy?`<div style="display:flex;justify-content:center;margin-top:14px">${dots()}</div>`:''}
+      </div>
+      ${S.quizzes.length?`<h3 style="font-family:var(--display);font-size:16px;color:var(--creamDim);margin:24px 0 12px">Published (${S.quizzes.length})</h3>
+      ${S.quizzes.map(q=>`<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center">
+        <div><h4 style="font-size:14px;color:var(--cream)">${q.title}</h4><p style="font-size:12px;color:var(--textDim)">${q.questions.length} Qs · ${q.time_limit_minutes||30} min · ${new Date(q.created_at).toLocaleDateString()}</p></div>
+        <button class="btn btn-danger" style="padding:5px 10px;font-size:11px" onclick="delQuiz('${q.id}')">Remove</button></div></div>`).join('')}`:''}
+    </div>`;
+}
+
+async function genAssessment() {
+  if (genSelIdx==null||genBusy) return;
+  genBusy=true; render();
+  const mat=S.materials[genSelIdx], numQ=$('gNumQ')?.value||'5', qType=$('gType')?.value||'mixed';
+  const typeI=qType==='mcq'?'ALL multiple choice':qType==='open'?'ALL open-ended':'a mix of MCQ and open-ended';
+
+  const resp = await askAI('Expert assessment designer. Respond ONLY with valid JSON. Do not include introductory or concluding text.',
+    `Generate exactly ${numQ} questions (${typeI}) from this material:\n\n${mat.content}\n\nJSON format: {"questions":[{"type":"mcq","question":"...","options":["A","B","C","D"],"correct":0,"explanation":"..."},{"type":"open","question":"...","rubric":"...","maxScore":5}]}\nMake questions rigorous. MCQ correct is 0-indexed.`);
+  
+  try { 
+    // THE FIX: Find the exact start and end of the JSON brackets and extract ONLY that part
+    const jsonStart = resp.indexOf('{');
+    const jsonEnd = resp.lastIndexOf('}');
+    
+    if (jsonStart === -1 || jsonEnd === -1) {
+        throw new Error("No JSON brackets found in response");
+    }
+    
+    const cleanJson = resp.substring(jsonStart, jsonEnd + 1);
+    genPreview = JSON.parse(cleanJson).questions; 
+  }
+  catch (error) { 
+    console.error("Raw AI Response that failed to parse:", resp); // This will let you see exactly what the AI said in the console!
+    toast('Failed to parse AI response. Try again.','error'); 
+  }
+  genBusy=false; render();
+}
+
+async function publishQuiz() {
+  if (!genPreview) return;
+  const mat=S.materials[genSelIdx], time=parseInt($('gTime')?.value)||30;
+  const { data, error } = await sb.from('quizzes').insert({
+    lecturer_id: S.profile.id, material_id: mat.id, title: mat.title+' — Assessment',
+    material_title: mat.title, questions: genPreview, time_limit_minutes: time
+  }).select().single();
+  if (error) toast('Error: '+error.message,'error');
+  else { S.quizzes.unshift(data); toast('Assessment published!','success'); }
+  genPreview=null; genSelIdx=null; render();
+}
+
+async function delQuiz(id) {
+  const { error } = await sb.from('quizzes').delete().eq('id',id);
+  if (!error) { S.quizzes=S.quizzes.filter(q=>q.id!==id); toast('Removed.','success'); render(); }
+  else toast('Error: '+error.message,'error');
+}
+
+// ═══════════════════════════════════════════
+// SCORES PAGE (LECTURER)
+// ═══════════════════════════════════════════
+function renderScores(el) {
+  if (!S.scores.length) { el.innerHTML=ph('🏆','Student Scores','0 submissions')+`<div class="page-body">${empty('📊','No submissions','Scores appear here after students take assessments.')}</div>`; return; }
+
+  const grouped={};
+  S.scores.forEach(s => { if(!grouped[s.quiz_title])grouped[s.quiz_title]=[]; grouped[s.quiz_title].push(s); });
+
+  el.innerHTML=`${ph('🏆','Student Scores',S.scores.length+' submission'+(S.scores.length!==1?'s':''))}
+    <div class="page-body">
+    ${Object.entries(grouped).map(([title,entries],gi)=>`
+      <div style="margin-bottom:24px;animation:fadeIn .4s ease-out ${gi*.1}s both">
+        <h3 style="font-family:var(--display);font-size:17px;color:var(--gold);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">${title}</h3>
+        <div style="overflow-x:auto"><table><thead><tr><th>Student</th><th>Score</th><th>%</th><th>Grade</th><th>Time</th><th>Date</th></tr></thead><tbody>
+        ${entries.map(s=>{
+          const g=s.percentage>=70?'A':s.percentage>=60?'B':s.percentage>=50?'C':s.percentage>=40?'D':'F';
+          const gc=s.percentage>=70?'var(--greenBright)':s.percentage>=50?'var(--gold)':'var(--redBright)';
+          return `<tr style="border-bottom:1px solid rgba(42,74,53,.13)">
+            <td style="color:var(--cream);font-weight:500">${s.student_name}</td>
+            <td style="font-family:var(--mono)">${s.score}/${s.max_score}</td>
+            <td><div style="display:flex;align-items:center;gap:8px"><div style="width:60px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:${s.percentage}%;background:${gc};border-radius:3px"></div></div><span style="font-family:var(--mono);font-size:12px;color:var(--textDim)">${s.percentage}%</span></div></td>
+            <td>${badge(g,gc)}</td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--textDim)">${s.time_taken_seconds?fmtTime(s.time_taken_seconds):'—'}</td>
+            <td style="color:var(--textDim);font-size:12px">${new Date(s.created_at).toLocaleString()}</td></tr>`;
+        }).join('')}
+        </tbody></table></div></div>`).join('')}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
+// BOOT — Check existing session
+// ═══════════════════════════════════════════
+(async () => {
+  // Check if config is set
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    document.body.innerHTML = `<div class="login-wrap"><div style="max-width:500px;text-align:center;animation:fadeIn .6s">
+      <h2 style="font-family:var(--display);font-size:24px;color:var(--gold);margin-bottom:16px">⚙️ Setup Required</h2>
+      <div class="card" style="text-align:left;line-height:1.8;font-size:14px">
+        <p style="margin-bottom:12px;color:var(--cream)">To use Scholar, connect it to your Supabase project:</p>
+        <p><strong style="color:var(--gold)">1.</strong> Create a project at <span style="color:var(--goldBright)">supabase.com</span></p>
+        <p><strong style="color:var(--gold)">2.</strong> Run the <span style="color:var(--goldBright)">schema.sql</span> file in the SQL Editor</p>
+        <p><strong style="color:var(--gold)">3.</strong> Go to Settings → API and copy your URL and anon key</p>
+        <p><strong style="color:var(--gold)">4.</strong> Open this HTML file and replace the two config lines at the top of the script:<br>
+        <code style="font-family:var(--mono);font-size:12px;color:var(--greenBright);display:block;margin-top:6px;padding:8px;background:var(--bgInput);border-radius:6px">
+        const SUPABASE_URL = 'https://your-project.supabase.co';<br>
+        const SUPABASE_ANON_KEY = 'your-anon-key-here';
+        </code></p>
+        <p style="margin-top:12px"><strong style="color:var(--gold)">5.</strong> In Supabase Auth settings, disable email confirmation for easier testing</p>
+      </div></div></div>`;
+    return;
+  }
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    await initApp(session.user);
+  }
+})();
+</script>
+</body>
+</html>
